@@ -47,8 +47,13 @@ class _OfferingTabState extends State<OfferingTab> {
   @override
   void didUpdateWidget(OfferingTab oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.quantities != oldWidget.quantities) {
-      _syncControllersWithQuantities();
+    // Toujours resynchroniser les champs si les quantités ont changé
+    // (ex. chargement depuis l'API), même si la Map est mutée ou remplacée.
+    for (final bill in widget.billTypes) {
+      final next = (widget.quantities[bill] ?? 0).toString();
+      if (_controllers[bill]?.text != next) {
+        _controllers[bill]!.text = next;
+      }
     }
   }
 

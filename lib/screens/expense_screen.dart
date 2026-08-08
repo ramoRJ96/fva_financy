@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../models/expense.dart';
 import '../models/offering_data.dart';
 import '../screens/offering_counter_screen.dart' as screen;
 
@@ -20,12 +19,18 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
   final _amountController = TextEditingController();
   DateTime? _selectedDate;
 
+  @override
+  void initState() {
+    super.initState();
+    _selectedDate = widget.offeringData.dateSabbat;
+  }
+
   Future<void> _selectDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: _selectedDate ?? DateTime.now(),
+      initialDate: _selectedDate ?? widget.offeringData.dateSabbat,
       firstDate: DateTime(2020),
-      lastDate: DateTime(2030),
+      lastDate: DateTime(2035),
     );
     if (picked != null && picked != _selectedDate) {
       setState(() {
@@ -42,19 +47,21 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
         amount,
         _selectedDate!,
       );
+      widget.offeringData.markExpensesDirty();
 
       widget.onDataUpdated?.call();
 
       setState(() {
         _labelController.clear();
         _amountController.clear();
-        _selectedDate = null;
+        _selectedDate = widget.offeringData.dateSabbat;
       });
     }
   }
 
   Future<void> _deleteExpense(int index) async {
     await widget.offeringData.expenseData.deleteExpense(index);
+    widget.offeringData.markExpensesDirty();
 
     widget.onDataUpdated?.call();
 
