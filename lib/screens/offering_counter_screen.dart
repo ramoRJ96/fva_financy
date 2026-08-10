@@ -166,6 +166,14 @@ class _OfferingCounterScreenState extends State<OfferingCounterScreen>
           IconButton(
             icon: const Icon(Icons.refresh, color: Colors.blueAccent,),
             onPressed: () async {
+              if (offeringData.isReadOnly) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Sabbat déjà validé — réinitialisation impossible'),
+                  ),
+                );
+                return;
+              }
               await offeringData.resetData();
               setState(() {});
             },
@@ -202,7 +210,10 @@ class _OfferingCounterScreenState extends State<OfferingCounterScreen>
                     const SizedBox(height: 12),
                     const LinearProgressIndicator(),
                   ],
-                  if (offeringData.isModificationMode) ...[
+                  if (offeringData.isReadOnly) ...[
+                    const SizedBox(height: 12),
+                    _buildLockedBanner(),
+                  ] else if (offeringData.isModificationMode) ...[
                     const SizedBox(height: 12),
                     _buildModificationBanner(),
                   ],
@@ -302,6 +313,33 @@ class _OfferingCounterScreenState extends State<OfferingCounterScreen>
                 await _logout();
               }
             },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLockedBanner() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.blueGrey.shade50,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.blueGrey.shade300),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.lock, color: Colors.blueGrey.shade800),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Sabbat déjà validé (VALIDATED) — lecture seule, modifications impossibles.',
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                color: Colors.blueGrey.shade900,
+              ),
+            ),
           ),
         ],
       ),
@@ -488,6 +526,7 @@ class _OfferingCounterScreenState extends State<OfferingCounterScreen>
                         setState(() => offeringData.updateQuantity(type, bill, count));
                       },
                       isCompleted: offeringData.completionStatus[type]!,
+                      readOnly: offeringData.isReadOnly,
                       onToggleCompletion: () {
                         setState(() => offeringData.toggleCompletion(type));
                       },

@@ -108,6 +108,19 @@ class ApiService {
     );
   }
 
+  /// Validations pour une église + date (filtre date si dispo côté API).
+  Future<http.Response> fetchSabbatValidationsByDate(
+    int fiangonanaId,
+    String dateYmd,
+  ) async {
+    final endpoint =
+        '/sabbat_validations?fiangonana=$fiangonanaId&dateSabbat[after]=$dateYmd&dateSabbat[before]=$dateYmd&itemsPerPage=20';
+    return await get(endpoint, headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/ld+json',
+    });
+  }
+
   // Versements
   Future<http.Response> postVersement(Map<String, dynamic> data) async {
     return await post('/versements', data);

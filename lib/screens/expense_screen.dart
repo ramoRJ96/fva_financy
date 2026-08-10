@@ -40,6 +40,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
   }
 
   Future<void> _submitExpense() async {
+    if (widget.offeringData.isReadOnly) return;
     if (_formKey.currentState!.validate() && _selectedDate != null) {
       final double amount = double.tryParse(_amountController.text) ?? 0.0;
       await widget.offeringData.expenseData.addExpense(
@@ -60,6 +61,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
   }
 
   Future<void> _deleteExpense(int index) async {
+    if (widget.offeringData.isReadOnly) return;
     await widget.offeringData.expenseData.deleteExpense(index);
     widget.offeringData.markExpensesDirty();
 
@@ -101,6 +103,23 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (widget.offeringData.isReadOnly) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.blueGrey.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blueGrey.shade300),
+                ),
+                child: const Text(
+                  'Sabbat déjà validé — dépenses en lecture seule.',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+            if (!widget.offeringData.isReadOnly)
             Form(
               key: _formKey,
               child: Column(
@@ -170,7 +189,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 24),
+            if (!widget.offeringData.isReadOnly) const SizedBox(height: 24),
             ListView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
@@ -184,13 +203,11 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                     mainAxisSize: MainAxisSize.min, // Important pour que la Row ne prenne pas toute la largeur
                     children: [
                       Text(expense.formattedAmount),
-                      IconButton(
-                        icon: const Icon(Icons.delete, color: Colors.red),
-                        onPressed: () {
-                          // Logique de suppression ici
-                          _deleteExpense(index);
-                        },
-                      ),
+                      if (!widget.offeringData.isReadOnly)
+                        IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.red),
+                          onPressed: () => _deleteExpense(index),
+                        ),
                     ],
                   ),
                 );

@@ -66,6 +66,12 @@ class _SyncScreenState extends State<SyncScreen> {
   }
 
   Future<void> finalizeSabbat() async {
+    if (widget.offeringData.isReadOnly) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Sabbat déjà validé — finalisation impossible')),
+      );
+      return;
+    }
     if (_bordereauImage == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Veuillez prendre une photo du bordereau signé')),
@@ -117,6 +123,12 @@ class _SyncScreenState extends State<SyncScreen> {
   }
 
   Future<void> sendOfferingToApi(String offering) async {
+    if (widget.offeringData.isReadOnly) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Sabbat déjà validé — synchronisation impossible')),
+      );
+      return;
+    }
     setState(() => _isLoading[offering] = true);
 
     final quantities = widget.offeringData.quantities[offering]!;
@@ -190,6 +202,12 @@ class _SyncScreenState extends State<SyncScreen> {
   }
 
   Future<void> sendExpensesToApi() async {
+    if (widget.offeringData.isReadOnly) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Sabbat déjà validé — synchronisation impossible')),
+      );
+      return;
+    }
     setState(() => _isLoading['expenses'] = true);
 
     final expenses = widget.offeringData.expenseData.expenses;
@@ -323,9 +341,11 @@ class _SyncScreenState extends State<SyncScreen> {
                 leading: const Icon(Icons.calendar_today, color: Color.fromRGBO(156, 24, 196, 1)),
                 title: const Text('Date du sabbat'),
                 subtitle: Text(
-                  widget.offeringData.isModificationMode
-                      ? '$dateLabel · mode modification'
-                      : dateLabel,
+                  widget.offeringData.isReadOnly
+                      ? '$dateLabel · validé (lecture seule)'
+                      : widget.offeringData.isModificationMode
+                          ? '$dateLabel · mode modification'
+                          : dateLabel,
                 ),
                 trailing: const Icon(Icons.edit, size: 20),
                 onTap: () async {
@@ -382,7 +402,8 @@ class _SyncScreenState extends State<SyncScreen> {
     final isSynced = !needsSync && total > 0;
     final isLoading = _isLoading[offering] ?? false;
     final isUpdate = widget.offeringData.remoteOfferingIds.containsKey(offering);
-    final canSync = needsSync && !isLoading && (total > 0 || isUpdate);
+    final locked = widget.offeringData.isReadOnly;
+    final canSync = !locked && needsSync && !isLoading && (total > 0 || isUpdate);
 
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 8.0),
@@ -412,12 +433,16 @@ class _SyncScreenState extends State<SyncScreen> {
               label: Text(
                 isLoading
                     ? 'En cours...'
-                    : isSynced
-                        ? 'Synchronisé'
-                        : (isUpdate ? 'Resynchroniser' : 'Synchroniser'),
+                    : locked
+                        ? 'Verrouillé'
+                        : isSynced
+                            ? 'Synchronisé'
+                            : (isUpdate ? 'Resynchroniser' : 'Synchroniser'),
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: isSynced ? Colors.grey : const Color.fromRGBO(156, 24, 196, 1),
+                backgroundColor: (isSynced || locked)
+                    ? Colors.grey
+                    : const Color.fromRGBO(156, 24, 196, 1),
                 foregroundColor: Colors.white,
               ),
             ),
@@ -433,7 +458,8 @@ class _SyncScreenState extends State<SyncScreen> {
     final isSynced = !needsSync && (totalExpenses > 0 || widget.offeringData.remoteExpenseIds.isNotEmpty);
     final isLoading = _isLoading['expenses'] ?? false;
     final isUpdate = widget.offeringData.remoteExpenseIds.isNotEmpty;
-    final canSync = needsSync && !isLoading;
+    final locked = widget.offeringData.isReadOnly;
+    final canSync = !locked && needsSync && !isLoading;
 
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 8.0),
@@ -463,12 +489,16 @@ class _SyncScreenState extends State<SyncScreen> {
               label: Text(
                 isLoading
                     ? 'En cours...'
-                    : isSynced
-                        ? 'Synchronisé'
-                        : (isUpdate ? 'Resynchroniser' : 'Synchroniser'),
+                    : locked
+                        ? 'Verrouillé'
+                        : isSynced
+                            ? 'Synchronisé'
+                            : (isUpdate ? 'Resynchroniser' : 'Synchroniser'),
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: isSynced ? Colors.grey : const Color.fromRGBO(156, 24, 196, 1),
+                backgroundColor: (isSynced || locked)
+                    ? Colors.grey
+                    : const Color.fromRGBO(156, 24, 196, 1),
                 foregroundColor: Colors.white,
               ),
             ),
@@ -536,21 +566,33 @@ class _SyncScreenState extends State<SyncScreen> {
               padding: const EdgeInsets.only(bottom: 10),
               child: Image.file(_bordereauImage!, height: 150),
             ),
-          ElevatedButton.icon(
-            onPressed: _pickImage,
-            icon: const Icon(Icons.camera_alt),
-            label: Text(_bordereauImage == null ? "Prendre photo Bordereau" : "Changer la photo"),
-          ),
-          const SizedBox(height: 15),
+          if (!widget.offeringData.isReadOnly) ...[
+            ElevatedButton.icon(
+              onPressed: _pickImage,
+              icon: const Icon(Icons.camera_alt),
+              label: Text(_bordereauImage == null ? "Prendre photo Bordereau" : "Changer la photo"),
+            ),
+            const SizedBox(height: 15),
+          ],
           SizedBox(
             width: double.infinity,
             height: 50,
             child: ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
-              onPressed: _isFinalizing ? null : finalizeSabbat,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: widget.offeringData.isReadOnly ? Colors.grey : Colors.green,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: (widget.offeringData.isReadOnly || _isFinalizing)
+                  ? null
+                  : finalizeSabbat,
               child: _isFinalizing
                   ? const CircularProgressIndicator(color: Colors.white)
-                  : const Text("VALIDER ET FERMER LE SABBAT", style: TextStyle(fontWeight: FontWeight.bold)),
+                  : Text(
+                      widget.offeringData.isReadOnly
+                          ? "SABBAT DÉJÀ VALIDÉ"
+                          : "VALIDER ET FERMER LE SABBAT",
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
             ),
           ),
         ],

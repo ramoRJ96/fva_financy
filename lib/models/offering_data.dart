@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
@@ -28,6 +29,12 @@ class OfferingData {
 
   /// True si la date choisie a déjà des données en base.
   bool isModificationMode = false;
+
+  /// Status API du SabbatValidation pour la date courante (`PENDING` / `VALIDATED` / `REJECTED`).
+  String? sabbatValidationStatus;
+
+  /// True si l'admin a validé ce sabbat — plus aucune modification autorisée.
+  bool get isReadOnly => sabbatValidationStatus == 'VALIDATED';
 
   OfferingData() {
     for (var offering in offeringTypes) {
@@ -83,6 +90,7 @@ class OfferingData {
     }
 
     await expenseData.loadExpenses();
+    await refreshValidationStatus();
   }
 
   Future<void> _saveData() async {
@@ -118,16 +126,19 @@ class OfferingData {
 
   Future<void> updateDateSabbat(DateTime date) async {
     dateSabbat = DateTime(date.year, date.month, date.day);
+    await refreshValidationStatus();
     await _saveData();
   }
 
   void updateQuantity(String offering, int bill, int count) {
+    if (isReadOnly) return;
     quantities[offering]![bill] = count;
     syncStatus[offering] = !_isOfferingDifferentFromRemote(offering);
     _saveData();
   }
 
   void toggleCompletion(String offering) {
+    if (isReadOnly) return;
     completionStatus[offering] = !(completionStatus[offering] ?? false);
     _saveData();
   }
@@ -143,6 +154,7 @@ class OfferingData {
   }
 
   void updateAmbimbolaTeoAloha(double value) {
+    if (isReadOnly) return;
     ambimbolaTeoAloha = value;
     _saveData();
   }
@@ -158,8 +170,64 @@ class OfferingData {
   }
 
   void markExpensesDirty() {
+    if (isReadOnly) return;
     expensesSyncStatus = false;
     _saveData();
+  }
+
+  /// Rafraîchit le statut de validation admin pour la date / église courantes.
+  Future<void> refreshValidationStatus() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final fiangonanaId = prefs.getInt('fiangonana_id');
+      if (fiangonanaId == null) {
+        sabbatValidationStatus = null;
+        return;
+      }
+
+      final dateYmd = DateFormat('yyyy-MM-dd').format(dateSabbat);
+      final api = ApiService();
+      var response =
+          await api.fetchSabbatValidationsByDate(fiangonanaId, dateYmd);
+
+      // Fallback si le filtre date n'est pas encore dispo côté API.
+      if (response.statusCode != 200) {
+        response = await api.get(
+          '/sabbat_validations?fiangonana=$fiangonanaId&itemsPerPage=50',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/ld+json',
+          },
+        );
+      }
+
+      if (response.statusCode != 200) {
+        sabbatValidationStatus = null;
+        return;
+      }
+
+      final members = _extractMembers(jsonDecode(response.body));
+      String? status;
+      for (final raw in members) {
+        if (raw is! Map) continue;
+        final item = Map<String, dynamic>.from(raw);
+        final rawDate = item['dateSabbat']?.toString() ?? '';
+        final itemDate =
+            rawDate.length >= 10 ? rawDate.substring(0, 10) : rawDate;
+        if (itemDate != dateYmd) continue;
+        final s = item['status']?.toString();
+        // VALIDATED prioritaire s'il existe plusieurs lignes.
+        if (s == 'VALIDATED') {
+          status = 'VALIDATED';
+          break;
+        }
+        status ??= s;
+      }
+      sabbatValidationStatus = status;
+    } catch (e) {
+      // Ne bloque pas l'UI si le check échoue.
+      debugPrint('refreshValidationStatus: $e');
+    }
   }
 
   bool needsOfferingSync(String offering) {
@@ -315,6 +383,7 @@ class OfferingData {
 
     if (offeringMembers.isEmpty && expenseMembers.isEmpty) {
       isModificationMode = false;
+      await refreshValidationStatus();
       await _saveData();
       return false;
     }
@@ -359,6 +428,7 @@ class OfferingData {
         loadedExpenses.map((e) => e.serverId).whereType<int>().toList();
     expensesSyncStatus = true;
     isModificationMode = true;
+    await refreshValidationStatus();
     await _saveData();
     return true;
   }
@@ -413,6 +483,7 @@ class OfferingData {
     remoteQuantities = {};
     remoteExpenseIds = [];
     isModificationMode = false;
+    sabbatValidationStatus = null;
     expenseData.expenses = [];
     await _saveData();
   }
