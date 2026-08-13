@@ -31,6 +31,19 @@ class _MainShellScreenState extends State<MainShellScreen> {
     if (mounted) setState(() {});
   }
 
+  Future<void> _confirmReset() async {
+    final ok = await FvaConfirm.show(
+      context,
+      title: 'Réinitialiser ?',
+      message: 'Toutes les saisies locales du sabbat seront effacées.',
+      confirmLabel: 'Réinitialiser',
+      destructive: true,
+    );
+    if (!ok || !mounted) return;
+    await offeringData.resetData();
+    _onDataChanged();
+  }
+
   Future<void> _logout() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('fiangonana_id');
@@ -75,6 +88,12 @@ class _MainShellScreenState extends State<MainShellScreen> {
               padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
               child: FvaBrandHeader(
                 actions: [
+                  if (_index == 0)
+                    IconButton(
+                      tooltip: 'Réinitialiser',
+                      onPressed: _confirmReset,
+                      icon: const Icon(Icons.refresh, color: AppColors.primary),
+                    ),
                   IconButton(
                     tooltip: 'Menu',
                     onPressed: () => _scaffoldKey.currentState?.openDrawer(),
